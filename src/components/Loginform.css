@@ -1,0 +1,135 @@
+.wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #1e1f29;
+}
+.card {
+  height: 300px;
+  width: 240px;
+  padding: 1.9rem 1.2rem;
+  text-align: center;
+  background: #2a2b38;
+}
+.card2 {
+  height: 420px;
+  width: 300px;
+  padding: 1.9rem 1.2rem;
+  text-align: center;
+  background: #2a2b38;
+}
+.field {
+  margin: 1.5rem 0rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  background-color: #1f2029;
+  border-radius: 4px;
+  padding: 0.5em 1em;
+}
+.field2 {
+  margin: 1.3rem 0rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  background-color: #1f2029;
+  border-radius: 4px;
+  padding: 0.5em 0.5em;
+}
+.input-icon {
+  height: 1em;
+  width: 1em;
+  fill: #ffeba7;
+}
+
+.input-field {
+  background: none;
+  border: none;
+  outline: none;
+  width: 100%;
+  color: #d3d3d3;
+}
+
+.title {
+  margin-bottom: 1rem;
+  font-size: 1.5em;
+  font-weight: 500;
+  color: #f5f5f5;
+}
+.title2 {
+  margin-bottom: 1rem;
+  font-size: 1.5em;
+  font-weight: 500;
+  color: #f5f5f5;
+}
+.subtitle {
+  margin-bottom: 20px;
+  font-size: 1em;
+  font-weight: 300;
+  color: #f5f5f5;
+}
+
+/*Buttons*/
+.btn {
+  margin: 1rem;
+  width: 90%;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 0.8em;
+  text-transform: uppercase;
+  padding: 0.6em 0.6em;
+  background-color: #ffeba7;
+  color: #5e6681;
+  cursor: pointer;
+  box-shadow: 0 8px 24px 0 rgb(255 235 167 / 20%);
+  transition: all 0.3s ease-in-out;
+}
+
+.btn-link {
+  color: #f5f5f5;
+  font-size: 0.75em;
+  display: block;
+  transition: color 0.3s ease-out;
+}
+
+
+.field input:focus::placeholder {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.field2 input:focus::placeholder {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+
+.btn:hover {
+  background-color: #5e6681;
+  color: #ffeba7;
+  box-shadow: 0 8px 24px 0 rgb(16 39 112 / 20%);
+}
+
+.btn-link:hover {
+  color: #ffeba7;
+}
+.input-button {
+  width: 100%;
+  padding: 0.6em 1em;
+  background-color: #1f2029;
+  color: #ffeba7;
+  border: none;
+  border-radius: 4px;
+  font-size: 1em;
+  cursor: pointer;
+  text-align: left;
+}
+
+.input-button:hover {
+  background-color: #2a2b38;
+  color: #ffffff;
+}
