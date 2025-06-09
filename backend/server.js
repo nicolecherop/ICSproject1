@@ -1,9 +1,10 @@
 require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
-const mysql = require('mysql2/promise'); // Using promise-based API
+const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -27,12 +28,10 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-
 // Registration endpoint
 app.post('/api/register', async (req, res) => {
   const { firstname, lastname, email, password } = req.body;
 
-  // Basic validation
   if (!firstname || !lastname || !email || !password) {
     return res.status(400).json({ error: 'All fields are required' });
   }
@@ -68,53 +67,36 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
-
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-
 // Staff login endpoint
 app.post('/api/staff/login', async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    const connection = await pool.getConnection();
-  app.post('/api/staff/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
+      return res.status(400).json({ error: 'Email and password are required' });
     }
 
     const connection = await pool.getConnection();
     const [users] = await connection.query(
-      'SELECT * FROM staff WHERE email = ?', 
+      'SELECT * FROM studentstaffuser WHERE email = ?', 
       [email]
     );
     connection.release();
 
     if (users.length === 0) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const user = users[0];
     const isMatch = await bcrypt.compare(password, user.password);
     
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const token = jwt.sign(
       { id: user.id, role: 'staff' },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'your_fallback_secret',
       { expiresIn: '1h' }
     );
 
@@ -129,7 +111,16 @@ app.post('/api/staff/login', async (req, res) => {
 
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error during login' });
+    res.status(500).json({ error: 'Server error during login' });
   }
-})};
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });

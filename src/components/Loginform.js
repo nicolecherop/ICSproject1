@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import './Loginform.css'; 
 
 const Loginform = () => {
@@ -7,8 +7,8 @@ const Loginform = () => {
   return (
     <div className="wrapper">
       <div className="card">
-        <p className="title">Log In</p>
-        <p className="subtitle">Choose your account type</p>
+        <p className="title">Welcome</p>
+        <p className="subtitle">Sign in</p>
         <form>
           <div className="option">
             <Link to="/Stafflogin" ><button type="button" className="btn" >
@@ -16,12 +16,7 @@ const Loginform = () => {
             </button>
             </Link>
           </div>
-          <div className="option">
-            <Link to= "/Adminlogin"><button type="button" className="btn">
-              Admin
-            </button>
-            </Link>
-          </div>
+          
           <button type="button" className="btn">
             Visitor
           </button>
