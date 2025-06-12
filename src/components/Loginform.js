@@ -17,9 +17,9 @@ const Loginform = () => {
             </Link>
           </div>
           
-          <button type="button" className="btn">
+          <Link to="/Visitorpage"><button type="button" className="btn">
             Visitor
-          </button>
+          </button></Link>
           <div className="btn-link"><Link to="/Registerform">Don't have an account?</Link></div>
         </form>
       </div>

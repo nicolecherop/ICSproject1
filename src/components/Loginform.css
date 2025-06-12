@@ -6,19 +6,27 @@
   background-color: #1e1f29;
 }
 .card {
-  height: 300px;
+  height: 310px;
   width: 240px;
   padding: 1.9rem 1.2rem;
   text-align: center;
   background: #2a2b38;
 }
 .card2 {
-  height: 450px;
+  height: 500px;
   width: 300px;
   padding: 1.9rem 1.2rem;
   text-align: center;
   background: #2a2b38;
 }
+.card3 {
+  height: 350px;
+  width: 250px;
+  padding: 1.9rem 1.2rem;
+  text-align: center;
+  background: #2a2b38;
+}
+
 .field {
   margin: 1.5rem 0rem;
   display: flex;
@@ -28,6 +36,7 @@
   background-color: #1f2029;
   border-radius: 4px;
   padding: 0.5em 1em;
+   appearance: none; /* removes default browser styling */
 }
 .field2 {
   margin: 1.3rem 0rem;
@@ -38,6 +47,7 @@
   background-color: #1f2029;
   border-radius: 4px;
   padding: 0.5em 0.5em;
+   appearance: none; /* removes default browser styling */
 }
 .input-icon {
   height: 1em;
@@ -46,11 +56,17 @@
 }
 
 .input-field {
-  background: none;
-  border: none;
-  outline: none;
-  width: 100%;
-  color: #d3d3d3;
+  background: none !important;
+  border: none !important;
+  outline: none !important;
+  padding: 0.6em !important;
+  font-size: 1em !important;
+  width: 100% !important;
+  height: 1em;
+  color: #d3d3d3 !important;
+  font-family: inherit !important;
+  box-sizing: border-box;
+  appearance: none;
 }
 
 .title {
@@ -137,7 +153,7 @@
   color: #dc3545;
   background-color: #f8d7da;
   border: 1px solid #f5c6cb;
-  padding: 10px;
+  padding: 5px;
   border-radius: 4px;
   margin-bottom: 15px;
   text-align: center;
@@ -146,4 +162,44 @@
 .btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+}
+/* Add these styles to your existing CSS */
+
+.select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.select-wrapper select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 16px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.select-arrow {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: #666;
+}
+
+select:required:invalid {
+  color: #6c757d;
+}
+
+select option[value=""][disabled] {
+  display: none;
+}
+
+select option {
+  color: #333;
 }

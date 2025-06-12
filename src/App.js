@@ -6,6 +6,8 @@ import Stafflogin from './components/Stafflogin';
 import Adminlogin from './components/Adminlogin';
 import Registerform from './components/Registerform';
 import Userprofile from './components/Userprofile';
+import Visitorpage from './components/Visitorpage';
+import Admindashboard from './components/Admindashboard';
 
 
 
@@ -18,6 +20,9 @@ function App() {
         <Route path="/Adminlogin" element={<Adminlogin />} />
         <Route path="/Registerform" element={<Registerform />} />
         <Route path="/Userprofile" element={<Userprofile />} />
+        <Route path="/Visitorpage" element={<Visitorpage />} />
+        <Route path="/Admindashboard" element={<Admindashboard />} />
+        
 
       </Routes>
     </Router>

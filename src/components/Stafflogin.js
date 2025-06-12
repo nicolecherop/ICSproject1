@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import './Loginform.css';
 import { Link, useNavigate } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 
 const Stafflogin = () => {
   const [email, setEmail] = useState('');
@@ -8,8 +9,7 @@ const Stafflogin = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -29,14 +29,26 @@ const Stafflogin = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.error || 'Login failed');
       }
 
+      // Store token and user data
       localStorage.setItem('staffToken', data.token);
+      localStorage.setItem('userData', JSON.stringify(data.user));
+      
       setSuccess('Login successful!');
       
-      // ✅ redirect immediately
-      navigate('/Userprofile');
+      // Redirect based on role
+      const decoded = jwtDecode(data.token);
+      if (decoded.role === 'admin') {
+        navigate('/Admindashboard');
+      } else {
+        navigate('/Userprofile', { 
+          state: { 
+            user: data.user 
+          } 
+        });
+      }
 
     } catch (err) {
       setError(err.message);
@@ -47,7 +59,7 @@ const Stafflogin = () => {
 
   return (
     <div className="wrapper">
-      <div className="card">
+      <div className="card3">
         <p className="title">Welcome Back</p>
         {error && <div className="error-message">{error}</div>}
         {success && <div className="success-message">{success}</div>}
