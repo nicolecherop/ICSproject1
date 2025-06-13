@@ -25,7 +25,7 @@ const AdminDashboard = () => {
       case 'users': return <UsersContent />;
       case 'orders': return <OrdersContent />;
       case 'analytics': return <AnalyticsContent />;
-      case 'settings': return <SettingsContent />;
+      
       default: return <DashboardContent />;
     }
   };
@@ -62,11 +62,11 @@ const AdminDashboard = () => {
               {sidebarOpen && <span>Users</span>}
             </li>
             <li 
-              className={activeTab === 'orders' ? 'active' : ''}
-              onClick={() => setActiveTab('orders')}
+              className={activeTab === 'visitors' ? 'active' : ''}
+              onClick={() => setActiveTab('visitors')}
             >
-              <FaShoppingCart className="icon" />
-              {sidebarOpen && <span>Orders</span>}
+              <FaUsers className="icon" />
+              {sidebarOpen && <span>Visitors</span>}
             </li>
             <li 
               className={activeTab === 'analytics' ? 'active' : ''}
@@ -80,7 +80,7 @@ const AdminDashboard = () => {
               onClick={() => setActiveTab('settings')}
             >
               <FaCog className="icon" />
-              {sidebarOpen && <span>Settings</span>}
+              {sidebarOpen && <span>Gate access</span>}
             </li>
           </ul>
         </nav>
@@ -113,19 +113,19 @@ const DashboardContent = () => (
         <p>1,245</p>
       </div>
       <div className="stat-card">
-        <h3>New Orders</h3>
+        <h3>Visitors</h3>
         <p>56</p>
       </div>
       <div className="stat-card">
-        <h3>Revenue</h3>
-        <p>$12,345</p>
+        <h3>Pending</h3>
+        <p>75</p>
       </div>
     </div>
     <div className="recent-activity">
       <h2>Recent Activity</h2>
       <ul>
         <li>New user registered - John Doe</li>
-        <li>Order #1234 completed</li>
+        <li>Vehicle information</li>
         <li>System updated to v2.3</li>
       </ul>
     </div>
@@ -168,18 +168,16 @@ const UsersContent = () => (
 
 const OrdersContent = () => (
   <div className="orders-content">
-    <h2>Order Management</h2>
+    <h2>Vehicle Management</h2>
     <div className="order-filters">
       <select>
-        <option>All Orders</option>
+        <option>All Vehicles</option>
         <option>Pending</option>
-        <option>Completed</option>
-        <option>Cancelled</option>
+        <option>Accepted</option>
+        <option>Denied</option>
       </select>
     </div>
-    <div className="orders-list">
-      <p>Order management content goes here</p>
-    </div>
+  
   </div>
 );
 
@@ -188,35 +186,14 @@ const AnalyticsContent = () => (
     <h2>Analytics Dashboard</h2>
     <div className="charts-container">
       <div className="chart">
-        <h3>User Growth</h3>
+        <h3>Users</h3>
         <div className="chart-placeholder">Chart will appear here</div>
       </div>
       <div className="chart">
-        <h3>Sales Performance</h3>
+        <h3>Entries</h3>
         <div className="chart-placeholder">Chart will appear here</div>
       </div>
     </div>
-  </div>
-);
-
-const SettingsContent = () => (
-  <div className="settings-content">
-    <h2>System Settings</h2>
-    <form>
-      <div className="form-group">
-        <label>Site Title</label>
-        <input type="text" defaultValue="Admin Dashboard" />
-      </div>
-      <div className="form-group">
-        <label>Timezone</label>
-        <select defaultValue="UTC">
-          <option>UTC</option>
-          <option>EST</option>
-          <option>PST</option>
-        </select>
-      </div>
-      <button type="submit" className="save-btn">Save Settings</button>
-    </form>
   </div>
 );
 

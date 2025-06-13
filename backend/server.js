@@ -248,6 +248,88 @@ app.post('/api/visitor/register', async (req, res) => {
     res.status(500).json({ error: 'Database error during visitor registration' });
   }
 });
+// Add this after your other middleware
+const authenticateJWT = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+  jwt.verify(token, process.env.JWT_SECRET || 'your_fallback_secret', (err, user) => {
+    if (err) return res.status(403).json({ error: 'Forbidden' });
+    req.user = user;
+    next();
+  });
+};
+
+// Submit vehicle information to vehicles table
+app.post('/api/submit-vehicle', authenticateJWT, async (req, res) => {
+  try {
+    const { email, numberplate, carDescription } = req.body;
+
+    // Validate required fields
+    if (!email || !numberplate) {
+      return res.status(400).json({ error: 'Email and number plate are required' });
+    }
+
+    const connection = await pool.getConnection();
+    
+    // Check if user exists
+    const [users] = await connection.query(
+      'SELECT id, firstname, lastname FROM studentstaffuser WHERE email = ?', 
+      [email]
+    );
+
+    if (users.length === 0) {
+      connection.release();
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const user = users[0];
+    
+    // Insert into vehicles table
+    const [result] = await connection.query(
+      `INSERT INTO vehicles 
+      (user_id, first_name, last_name, email, numberplate, car_description, status, created_at) 
+      VALUES (?, ?, ?, ?, ?, ?, 'Pending', NOW())`,
+      [user.id, user.firstname, user.lastname, email, numberplate, carDescription || null]
+    );
+
+    connection.release();
+
+    res.json({ 
+      message: 'Vehicle information submitted successfully',
+      vehicleId: result.insertId
+    });
+
+  } catch (err) {
+    console.error('Submit vehicle error:', err);
+    res.status(500).json({ error: 'Failed to submit vehicle information' });
+  }
+});
+
+// Get user's vehicle submissions
+app.get('/api/submissions', authenticateJWT, async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [vehicles] = await connection.query(
+      `SELECT id, numberplate, car_description as carDescription, 
+       status, created_at as createdAt
+       FROM vehicles 
+       WHERE email = ? 
+       ORDER BY created_at DESC`,
+      [req.user.email]
+    );
+    connection.release();
+
+    res.json(vehicles);
+  } catch (err) {
+    console.error('Fetch submissions error:', err);
+    res.status(500).json({ error: 'Failed to fetch submissions' });
+  }
+});
+
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {

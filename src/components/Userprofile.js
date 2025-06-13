@@ -6,7 +6,7 @@ import { jwtDecode } from 'jwt-decode';
 const Userprofile = () => {
   const [activeTab, setActiveTab] = useState('Vehicle Entry');
   const [formData, setFormData] = useState({
-    username: '',
+    email: '',
     numberplate: '',
     carDescription: ''
   });
@@ -17,6 +17,8 @@ const Userprofile = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -35,7 +37,7 @@ const Userprofile = () => {
           });
           setFormData(prev => ({
             ...prev,
-            username: user.name || ''
+            email: user.email || ''
           }));
           setLoading(false);
           return;
@@ -51,7 +53,7 @@ const Userprofile = () => {
           });
           setFormData(prev => ({
             ...prev,
-            username: parsedData.name || ''
+            email: parsedData.email || ''
           }));
           setLoading(false);
           return;
@@ -85,7 +87,7 @@ const Userprofile = () => {
         localStorage.setItem('userData', JSON.stringify(userInfo));
         setFormData(prev => ({
           ...prev,
-          username: userInfo.name
+          email: userInfo.email
         }));
 
       } catch (err) {
@@ -99,8 +101,40 @@ const Userprofile = () => {
     fetchUserData();
   }, [navigate, location.state]);
 
+  useEffect(() => {
+    if (activeTab === 'Submission History') {
+      fetchSubmissions();
+    }
+  }, [activeTab]);
+
+  const fetchSubmissions = async () => {
+    try {
+      const token = localStorage.getItem('staffToken');
+      if (!token) {
+        navigate('/Stafflogin');
+        return;
+      }
+
+      const response = await fetch('http://localhost:5000/api/submissions', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch submissions');
+      }
+
+      const data = await response.json();
+      setSubmissions(data);
+    } catch (err) {
+      setError(err.message || 'Failed to load submission history');
+    }
+  };
+
   const handleTabChange = (tabName) => {
     setActiveTab(tabName);
+    setSubmitSuccess(false);
   };
 
   const handleInputChange = (e) => {
@@ -111,15 +145,50 @@ const Userprofile = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (formData.username && formData.numberplate) {
-      alert(`Submitted:\nUsername: ${formData.username}\nNumber Plate: ${formData.numberplate}`);
+    try {
+      const token = localStorage.getItem('staffToken');
+      if (!token) {
+        navigate('/Stafflogin');
+        return;
+      }
+
+      const response = await fetch('http://localhost:5000/api/submit-vehicle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          numberplate: formData.numberplate,
+          carDescription: formData.carDescription
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Submission failed');
+      }
+
+      const data = await response.json(); 
+
+      setSubmitSuccess(true);
       setFormData(prev => ({
         ...prev,
         numberplate: '',
         carDescription: ''
       }));
+      
+      // Refresh submissions if on history tab
+      if (activeTab === 'Submission History') {
+        fetchSubmissions();
+      }
+
+      // Hide success message after 3 seconds
+      setTimeout(() => setSubmitSuccess(false), 3000);
+    } catch (err) {
+      setError(err.message || 'Failed to submit vehicle information');
     }
   };
 
@@ -167,12 +236,6 @@ const Userprofile = () => {
           >
             Submission History
           </button>
-          <button
-            className={`nav-button ${activeTab === 'Settings' ? 'active' : ''}`}
-            onClick={() => handleTabChange('Settings')}
-          >
-            Settings
-          </button>
         </nav>
 
         <button className="logout-button" onClick={handleLogout}>
@@ -181,10 +244,17 @@ const Userprofile = () => {
       </div>
 
       <div className="main-content">
+        {submitSuccess && (
+          <div className="success-message">
+            Vehicle information submitted successfully!
+          </div>
+        )}
+
         {activeTab === 'Vehicle Entry' && (
           <div className="form-container">
             <h2>Vehicle Information Entry</h2>
             <form onSubmit={handleSubmit}>
+
               <div className="form-group">
                 <label>Email</label>
                 <input
@@ -193,6 +263,7 @@ const Userprofile = () => {
                   value={formData.email}
                   onChange={handleInputChange}
                   required
+                  disabled
                 />
               </div>
               <div className="form-group">
@@ -224,30 +295,32 @@ const Userprofile = () => {
         {activeTab === 'Submission History' && (
           <div className="history-container">
             <h2>Your Submission History</h2>
-            <div className="history-placeholder">
-              <p>Your previous submissions will appear here</p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'Settings' && (
-          <div className="settings-container">
-            <h2>Account Settings</h2>
-            <div className="user-info-card">
-              <h3>Personal Information</h3>
-              <div className="info-row">
-                <span className="info-label">Name:</span>
-                <span className="info-value">{userData.name}</span>
+            {submissions.length === 0 ? (
+              <div className="history-placeholder">
+                <p>No submissions found</p>
               </div>
-              <div className="info-row">
-                <span className="info-label">Email:</span>
-                <span className="info-value">{userData.email}</span>
-              </div>
-              <div className="info-row">
-                <span className="info-label">Account Type:</span>
-                <span className="info-value">{userData.role?.toUpperCase() || 'USER'}</span>
-              </div>
-            </div>
+            ) : (
+              <table className="submissions-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Number Plate</th>
+                    <th>Description</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {submissions.map((submission, index) => (
+                    <tr key={index}>
+                      <td>{new Date(submission.createdAt).toLocaleString()}</td>
+                      <td>{submission.numberplate}</td>
+                      <td>{submission.carDescription || 'N/A'}</td>
+                      <td>{submission.status || 'Submitted'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>
