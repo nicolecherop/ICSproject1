@@ -28,8 +28,8 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// Token verification middleware
-function authenticateToken(req, res, next) {
+// JWT verification middleware
+const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   
@@ -40,28 +40,33 @@ function authenticateToken(req, res, next) {
     req.user = user;
     next();
   });
-}
+};
 
 // Registration endpoint
 app.post('/api/register', async (req, res) => {
-  // Trim and validate all inputs
-  const firstname = req.body.firstname?.trim();
-  const lastname = req.body.lastname?.trim();
-  const email = req.body.email?.trim().toLowerCase();
-  const password = req.body.password?.trim();
-  const role = 'user'; // Hardcoded default role
-
-  // Validate required fields
-  if (!firstname || !lastname || !email || !password) {
-    return res.status(400).json({ error: 'All fields must contain valid non-whitespace characters' });
-  }
-
-  // Validate email format
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return res.status(400).json({ error: 'Invalid email format' });
-  }
-
   try {
+    // Trim and validate all inputs
+    const firstname = req.body.firstname?.trim();
+    const lastname = req.body.lastname?.trim();
+    const email = req.body.email?.trim().toLowerCase();
+    const password = req.body.password?.trim();
+    const role = 'user'; // Default role
+
+    // Validate required fields
+    if (!firstname || !lastname || !email || !password) {
+      return res.status(400).json({ error: 'All fields are required' });
+    }
+
+    // Validate email format
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
+    // Validate password strength
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
     const connection = await pool.getConnection();
     
     // Check if user exists
@@ -172,14 +177,15 @@ app.post('/api/staff/login', async (req, res) => {
 });
 
 // User profile endpoint
-app.get('/api/user/profile', authenticateToken, async (req, res) => {
+app.get('/api/user/:id', authenticateJWT, async (req, res) => {
   try {
+    const userId = req.params.id;
     const connection = await pool.getConnection();
     const [users] = await connection.query(
       `SELECT id, firstname, lastname, email, role 
        FROM studentstaffuser 
        WHERE id = ?`,
-      [req.user.id]
+      [userId]
     );
     connection.release();
 
@@ -237,7 +243,6 @@ app.post('/api/visitor/register', async (req, res) => {
 
     const parkingPassId = `PASS-${String(result.insertId).padStart(5, '0')}`;
     
-
     res.status(201).json({
       message: 'Visitor registered successfully!',
       parkingPassId
@@ -248,21 +253,6 @@ app.post('/api/visitor/register', async (req, res) => {
     res.status(500).json({ error: 'Database error during visitor registration' });
   }
 });
-// Add this after your other middleware
-const authenticateJWT = (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-  
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
-
-  jwt.verify(token, process.env.JWT_SECRET || 'your_fallback_secret', (err, user) => {
-    if (err) return res.status(403).json({ error: 'Forbidden' });
-    req.user = user;
-    next();
-  });
-};
-
-// Submit vehicle information to vehicles table
 app.post('/api/submit-vehicle', authenticateJWT, async (req, res) => {
   try {
     const { email, numberplate, carDescription } = req.body;
@@ -276,7 +266,7 @@ app.post('/api/submit-vehicle', authenticateJWT, async (req, res) => {
     
     // Check if user exists
     const [users] = await connection.query(
-      'SELECT id, firstname, lastname FROM studentstaffuser WHERE email = ?', 
+      'SELECT id FROM studentstaffuser WHERE email = ?', 
       [email]
     );
 
@@ -285,34 +275,47 @@ app.post('/api/submit-vehicle', authenticateJWT, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const user = users[0];
     
-    // Insert into vehicles table
+    // Check for duplicate number plate
+    const [existing] = await connection.query(
+      'SELECT * FROM vehicles WHERE numberplate = ? AND email = ?',
+      [numberplate, email]
+    );
+
+    if (existing.length > 0) {
+      connection.release();
+      return res.status(409).json({ error: 'This vehicle has already been registered' });
+    }
+    
+    // Insert into vehicles table WITHOUT specifying ID
     const [result] = await connection.query(
       `INSERT INTO vehicles 
-      (user_id, first_name, last_name, email, numberplate, car_description, status, created_at) 
-      VALUES (?, ?, ?, ?, ?, ?, 'Pending', NOW())`,
-      [user.id, user.firstname, user.lastname, email, numberplate, carDescription || null]
+      (email, numberplate, car_description, status, created_at) 
+      VALUES (?, ?, ?, 'Pending', NOW())`,
+      [email, numberplate, carDescription || null]
     );
 
     connection.release();
 
     res.json({ 
       message: 'Vehicle information submitted successfully',
-      vehicleId: result.insertId
+      submissionId: result.insertId
     });
 
   } catch (err) {
     console.error('Submit vehicle error:', err);
-    res.status(500).json({ error: 'Failed to submit vehicle information' });
+    res.status(500).json({ 
+      error: 'Failed to submit vehicle information',
+      details: err.message
+    });
   }
 });
 
-// Get user's vehicle submissions
+// Get user's submissions
 app.get('/api/submissions', authenticateJWT, async (req, res) => {
   try {
     const connection = await pool.getConnection();
-    const [vehicles] = await connection.query(
+    const [submissions] = await connection.query(
       `SELECT id, numberplate, car_description as carDescription, 
        status, created_at as createdAt
        FROM vehicles 
@@ -322,15 +325,108 @@ app.get('/api/submissions', authenticateJWT, async (req, res) => {
     );
     connection.release();
 
-    res.json(vehicles);
+    res.json(submissions);
   } catch (err) {
     console.error('Fetch submissions error:', err);
     res.status(500).json({ error: 'Failed to fetch submissions' });
   }
 });
 
+// Admin get all submissions
+app.get('/api/admin/submissions', authenticateJWT, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
 
+    const connection = await pool.getConnection();
+    const [submissions] = await connection.query(
+      `SELECT v.id, v.numberplate, v.car_description as carDescription, 
+       v.status, v.created_at as createdAt,
+       CONCAT(u.firstname, ' ', u.lastname) as userName
+       FROM vehicles v
+       JOIN studentstaffuser u ON v.user_id = u.id
+       ORDER BY v.created_at DESC`
+    );
+    connection.release();
 
+    res.json(submissions);
+  } catch (err) {
+    console.error('Admin fetch submissions error:', err);
+    res.status(500).json({ error: 'Failed to fetch submissions' });
+  }
+});
+
+// Admin update submission status
+app.put('/api/admin/submissions/:id', authenticateJWT, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!['Pending', 'Approved', 'Rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const connection = await pool.getConnection();
+    const [result] = await connection.query(
+      'UPDATE vehicles SET status = ? WHERE id = ?',
+      [status, id]
+    );
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Submission not found' });
+    }
+
+    res.json({ message: 'Status updated successfully' });
+
+  } catch (err) {
+    console.error('Update status error:', err);
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+app.delete('/api/delete-vehicle/:id', authenticateJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userEmail = req.user.email;
+    const connection = await pool.getConnection();
+
+    // Check ownership
+    const [vehicle] = await connection.query(
+      'SELECT * FROM vehicles WHERE id = ? AND email = ?',
+      [id, userEmail]
+    );
+
+    if (vehicle.length === 0) {
+      connection.release();
+      return res.status(404).json({ error: 'Vehicle not found or unauthorized' });
+    }
+
+    // Delete the vehicle
+    const [result] = await connection.query(
+      'DELETE FROM vehicles WHERE id = ?',
+      [id]
+    );
+
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    res.json({ message: 'Vehicle deleted successfully' });
+  } catch (err) {
+    console.error('Delete vehicle error:', err);
+    res.status(500).json({ error: 'Failed to delete vehicle' });
+  }
+});
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

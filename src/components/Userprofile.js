@@ -35,10 +35,7 @@ const Userprofile = () => {
             email: user.email || '',
             role: user.role || 'user'
           });
-          setFormData(prev => ({
-            ...prev,
-            email: user.email || ''
-          }));
+          setFormData(prev => ({ ...prev, email: user.email || '' }));
           setLoading(false);
           return;
         }
@@ -51,10 +48,7 @@ const Userprofile = () => {
             email: parsedData.email || '',
             role: parsedData.role || 'user'
           });
-          setFormData(prev => ({
-            ...prev,
-            email: parsedData.email || ''
-          }));
+          setFormData(prev => ({ ...prev, email: parsedData.email || '' }));
           setLoading(false);
           return;
         }
@@ -67,14 +61,10 @@ const Userprofile = () => {
 
         const decoded = jwtDecode(token);
         const response = await fetch(`http://localhost:5000/api/user/${decoded.id}`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch user data');
-        }
+        if (!response.ok) throw new Error('Failed to fetch user data');
 
         const data = await response.json();
         const userInfo = {
@@ -85,11 +75,7 @@ const Userprofile = () => {
 
         setUserData(userInfo);
         localStorage.setItem('userData', JSON.stringify(userInfo));
-        setFormData(prev => ({
-          ...prev,
-          email: userInfo.email
-        }));
-
+        setFormData(prev => ({ ...prev, email: userInfo.email }));
       } catch (err) {
         setError(err.message || 'Failed to load profile data');
         navigate('/Stafflogin');
@@ -116,14 +102,10 @@ const Userprofile = () => {
       }
 
       const response = await fetch('http://localhost:5000/api/submissions', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch submissions');
-      }
+      if (!response.ok) throw new Error('Failed to fetch submissions');
 
       const data = await response.json();
       setSubmissions(data);
@@ -132,22 +114,47 @@ const Userprofile = () => {
     }
   };
 
+  const handleDelete = async (id) => {
+  try {
+    const token = localStorage.getItem('staffToken');
+    if (!token) {
+      navigate('/Stafflogin');
+      return;
+    }
+
+    const response = await fetch(`http://localhost:5000/api/delete-vehicle/${id}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (!response.ok) throw new Error('Failed to delete vehicle');
+
+    setSubmissions(submissions.filter(item => item.id !== id)); 
+  } catch (err) {
+    setError(err.message || 'Error deleting vehicle');
+  }
+};
+
   const handleTabChange = (tabName) => {
     setActiveTab(tabName);
     setSubmitSuccess(false);
+    setError(null);
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      setError(null);
+
+      if (!formData.numberplate.trim()) {
+        throw new Error('Number plate is required');
+      }
+
       const token = localStorage.getItem('staffToken');
       if (!token) {
         navigate('/Stafflogin');
@@ -162,30 +169,19 @@ const Userprofile = () => {
         },
         body: JSON.stringify({
           email: formData.email,
-          numberplate: formData.numberplate,
-          carDescription: formData.carDescription
+          numberplate: formData.numberplate.trim().toUpperCase(),
+          carDescription: formData.carDescription?.trim() || null
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Submission failed');
-      }
+      const data = await response.json();
 
-      const data = await response.json(); 
+      if (!response.ok) throw new Error(data.error || 'Submission failed');
 
       setSubmitSuccess(true);
-      setFormData(prev => ({
-        ...prev,
-        numberplate: '',
-        carDescription: ''
-      }));
-      
-      // Refresh submissions if on history tab
-      if (activeTab === 'Submission History') {
-        fetchSubmissions();
-      }
+      setFormData(prev => ({ ...prev, numberplate: '', carDescription: '' }));
+      if (activeTab === 'Submission History') await fetchSubmissions();
 
-      // Hide success message after 3 seconds
       setTimeout(() => setSubmitSuccess(false), 3000);
     } catch (err) {
       setError(err.message || 'Failed to submit vehicle information');
@@ -203,15 +199,6 @@ const Userprofile = () => {
       <div className="loading-container">
         <div className="loading-spinner"></div>
         <p>Loading your profile...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="error-container">
-        <p>{error}</p>
-        <button onClick={() => window.location.reload()}>Try Again</button>
       </div>
     );
   }
@@ -244,6 +231,7 @@ const Userprofile = () => {
       </div>
 
       <div className="main-content">
+        {error && <div className="error-message">{error}</div>}
         {submitSuccess && (
           <div className="success-message">
             Vehicle information submitted successfully!
@@ -254,7 +242,6 @@ const Userprofile = () => {
           <div className="form-container">
             <h2>Vehicle Information Entry</h2>
             <form onSubmit={handleSubmit}>
-
               <div className="form-group">
                 <label>Email</label>
                 <input
@@ -274,6 +261,7 @@ const Userprofile = () => {
                   value={formData.numberplate}
                   onChange={handleInputChange}
                   required
+                  placeholder="Enter vehicle number plate"
                 />
               </div>
               <div className="form-group">
@@ -283,6 +271,7 @@ const Userprofile = () => {
                   rows="4"
                   value={formData.carDescription}
                   onChange={handleInputChange}
+                  placeholder="Describe your vehicle"
                 />
               </div>
               <button type="submit" className="submit-button">
@@ -300,26 +289,23 @@ const Userprofile = () => {
                 <p>No submissions found</p>
               </div>
             ) : (
-              <table className="submissions-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Number Plate</th>
-                    <th>Description</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {submissions.map((submission, index) => (
-                    <tr key={index}>
-                      <td>{new Date(submission.createdAt).toLocaleString()}</td>
-                      <td>{submission.numberplate}</td>
-                      <td>{submission.carDescription || 'N/A'}</td>
-                      <td>{submission.status || 'Submitted'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="card-grid">
+                {submissions.map((submission, index) => (
+                  <div className="vehicle-card" key={index}>
+                    <p><strong>Date:</strong> {new Date(submission.createdAt).toLocaleString()}</p>
+                    <p><strong>Number Plate:</strong> {submission.numberplate}</p>
+                    <p><strong>Description:</strong> {submission.carDescription || 'N/A'}</p>
+                    <p><strong>Status:</strong> <span className={`status-badge ${submission.status.toLowerCase()}`}>{submission.status}</span></p>
+                    <button
+                      className="delete-button"
+                      onClick={() => handleDelete(submission.id)}
+
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
