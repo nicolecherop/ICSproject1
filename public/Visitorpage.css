@@ -11,7 +11,6 @@ body {
   line-height: 1.6;
 }
 
-/* Form Container */
 .container {
   max-width: 800px;
   margin: 40px auto;
@@ -103,19 +102,17 @@ textarea {
     margin: 20px;
     padding: 20px;
   }
-
+  
   .form-row {
     flex-direction: column;
     gap: 0;
   }
 }
-
-/* Go Back Button */
 .go-back-btn {
   margin-top: 20px;
   padding: 12px 20px;
   font-size: 16px;
-  background-color: #bdc3c7;
+  background-color: #bdc3c7 ;
   color: #2c3e50;
   border: none;
   border-radius: 6px;
@@ -126,153 +123,75 @@ textarea {
 .go-back-btn:hover {
   background-color: #95a5a6;
 }
-
-
-.confirmation-container {
-  padding: 40px ;
-  background-color: #f3f6fa;
-  min-height: 610px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
-
 .confirmation-wrapper {
-  background-color: #f3f6fa;
-  width: 400px;
-  max-width: 400px;
-  padding: 20px;
-}
-
-.confirmation-card {
-  margin-top:5px;
-  background-color: white;
-  max-width: 400px;
-  max-height: 600px;
-  padding: 30px;
-  border-radius: 10px;
-  text-align: center;
-  border: 2px solid #2c3e50;
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-left: 400px;
+  margin-top: 20px;
+}
+
+.confirmation-card {
+  border: 2px solid #333;
+  padding: 20px;
+  background: #fff;
+  width: 320px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  text-align: center;
 }
 
 .confirmation-card h2 {
-  color: #2c3e50;
-  margin-bottom: 20px;
-  font-size: 24px;
-  padding-bottom: 10px;
+  margin-bottom: 10px;
 }
 
-.visitor-details {
-  margin-bottom: 20px;
-  text-align: left;
-}
-
-.detail-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.detail-label {
-  font-weight: 600;
-  color: #555;
-}
-
-.detail-value {
-  color: #333;
-}
-
-.pass-id {
-  font-size: 18px;
-  font-weight: bold;
-  color:#2c3e50;
-  margin: 10px 0;
-}
-
-.qr-code-container {
-  margin: 15px auto;
-  padding: 4px;
-  background: white;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  display: inline-block;
-}
-
-.pass-instructions {
-  font-style: italic;
-  color: black;
+.qr-code {
   margin-top: 20px;
-  font-size: 14px;
-}
-
-.button-group {
-  display: flex;
-  gap: 15px;
-  margin-top: 25px;
-  justify-content: center;
 }
 
 .print-btn {
+  margin-top: 15px;
   padding: 10px 20px;
-  background-color: #3498db;
-  color: white;
+  background-color: #1e1f29;
+  color: #fff;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 15px;
-  transition: background-color 0.3s;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .print-btn:hover {
-  background-color: #2980b9;
-}
-
-.no-print {
-  @media print {
-    display: none !important;
-  }
+  background-color: #333;
 }
 @media print {
-  @page {
-    size: A4 portrait;
-    margin: 10mm;
-  }
-
   body * {
     visibility: hidden;
   }
 
-  #printable-pass, #printable-pass * {
+  .confirmation-card,
+  .confirmation-card * {
     visibility: visible;
   }
 
-  #printable-pass {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 90%;
-  max-width: 400px;
-  height: auto;
-  border: none;
-  box-shadow: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  background: white;
-  padding: 30px;
-  page-break-inside: avoid;
-  margin: 0 auto;
-}
+  .confirmation-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
 
-  .no-print {
-    display: none !important;
+  .print-btn,
+  .go-back-btn {
+    display: none;
   }
 }
+

@@ -205,8 +205,6 @@ app.get('/api/user/:id', authenticateJWT, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
-
-// Visitor registration endpoint
 app.post('/api/visitor/register', async (req, res) => {
   try {
     const {
@@ -220,23 +218,33 @@ app.post('/api/visitor/register', async (req, res) => {
       otherReason
     } = req.body;
 
-    // Trim and validate inputs
-    const trimmedFirstName = firstName?.trim();
-    const trimmedLastName = lastName?.trim();
-    const trimmedEmail = email?.trim().toLowerCase();
-    const trimmedNumberplate = numberplate?.trim();
+    
+    const trimmedPlate = numberplate?.trim().toUpperCase();
+    const trimmedDate = visitDate?.trim();
 
-    if (!trimmedFirstName || !trimmedLastName || !trimmedEmail || !trimmedNumberplate || !visitDate || !visitReason) {
+    if (!firstName || !lastName || !email || !trimmedPlate || !trimmedDate || !visitReason) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
     const connection = await pool.getConnection();
 
+    // ✅ Check for duplicate plate on same date
+    const [existing] = await connection.query(
+      `SELECT id FROM visitors WHERE number_plate = ? AND visit_date = ?`,
+      [trimmedPlate, trimmedDate]
+    );
+
+    if (existing.length > 0) {
+      connection.release();
+      return res.status(409).json({ error: 'This car is already registered for that date.' });
+    }
+
+    // Insert if no duplicate
     const [result] = await connection.query(
       `INSERT INTO visitors 
-      (first_name, last_name, email, number_plate, visit_date, car_description, visit_reason, other_reason) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [trimmedFirstName, trimmedLastName, trimmedEmail, trimmedNumberplate, visitDate, carDescription, visitReason, otherReason]
+       (first_name, last_name, email, number_plate, visit_date, car_description, visit_reason, other_reason) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [firstName.trim(), lastName.trim(), email.trim().toLowerCase(), trimmedPlate, trimmedDate, carDescription, visitReason, otherReason]
     );
 
     connection.release();
@@ -250,9 +258,10 @@ app.post('/api/visitor/register', async (req, res) => {
 
   } catch (err) {
     console.error('Visitor registration error:', err);
-    res.status(500).json({ error: 'Database error during visitor registration' });
+    res.status(500).json({ error: 'Failed to register visitor' });
   }
 });
+
 app.post('/api/submit-vehicle', authenticateJWT, async (req, res) => {
   try {
     const { email, numberplate, carDescription } = req.body;
@@ -342,13 +351,13 @@ app.get('/api/admin/submissions', authenticateJWT, async (req, res) => {
 
     const connection = await pool.getConnection();
     const [submissions] = await connection.query(
-      `SELECT v.id, v.numberplate, v.car_description as carDescription, 
-       v.status, v.created_at as createdAt,
-       CONCAT(u.firstname, ' ', u.lastname) as userName
-       FROM vehicles v
-       JOIN studentstaffuser u ON v.user_id = u.id
-       ORDER BY v.created_at DESC`
-    );
+  `SELECT v.id, v.numberplate, v.car_description as carDescription, 
+   v.status, v.created_at as createdAt,
+   CONCAT(u.firstname, ' ', u.lastname) as userName
+   FROM vehicles v
+   JOIN studentstaffuser u ON v.email = u.email
+   ORDER BY v.created_at DESC`
+);
     connection.release();
 
     res.json(submissions);
@@ -427,6 +436,288 @@ app.delete('/api/delete-vehicle/:id', authenticateJWT, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete vehicle' });
   }
 });
+// Admin stats endpoint - Still needs work next priority remember
+app.get('/api/admin/stats', authenticateJWT, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const connection = await pool.getConnection();
+    
+    // Debug: Verify tables exist
+    const [tables] = await connection.query(
+      "SHOW TABLES LIKE 'studentstaffuser'"
+    );
+    if (tables.length === 0) {
+      connection.release();
+      return res.status(500).json({ error: 'studentstaffuser table does not exist' });
+    }
+
+    // Get counts with error handling
+    let usersCount, visitorsCount, pendingVehicles;
+    
+    try {
+      [usersCount] = await connection.query(
+        'SELECT COUNT(id) as count FROM studentstaffuser'
+      );
+    } catch (err) {
+      console.error('Error counting users:', err);
+      usersCount = [{ count: 0 }];
+    }
+
+    try {
+      [visitorsCount] = await connection.query(
+        'SELECT COUNT(id) as count FROM visitors'
+      );
+    } catch (err) {
+      console.error('Error counting visitors:', err);
+      visitorsCount = [{ count: 0 }];
+    }
+
+    try {
+      [pendingVehicles] = await connection.query(
+        `SELECT COUNT(id) as count FROM vehicles WHERE status = 'Pending'`
+      );
+    } catch (err) {
+      console.error('Error counting pending vehicles:', err);
+      pendingVehicles = [{ count: 0 }];
+    }
+    
+    connection.release();
+
+    // Debug output
+   
+    res.json({
+      totalUsers: usersCount[0].count,
+      totalVisitors: visitorsCount[0].count,
+      pendingVehicles: pendingVehicles[0].count
+    });
+  } catch (err) {
+    console.error('Admin stats error:', err);
+    res.status(500).json({ 
+      error: 'Failed to fetch stats',
+      details: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    });
+  }
+});
+
+// Get all users (admin only)
+app.get('/api/admin/users', authenticateJWT, async (req, res) => {
+  try {
+
+    const connection = await pool.getConnection();
+    const [users] = await connection.query(
+      'SELECT id, firstname, lastname, email, role FROM studentstaffuser ORDER BY id DESC'
+    );
+    connection.release();
+
+    res.json(users);
+  } catch (err) {
+    console.error('Get users error:', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Delete user (admin only)
+app.delete('/api/admin/users/:id', authenticateJWT, async (req, res) => {
+  try {
+    
+    const userId = req.params.id;
+    const connection = await pool.getConnection();
+  
+    if (req.user.id === parseInt(userId)) {
+      connection.release();
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    const [result] = await connection.query(
+      'DELETE FROM studentstaffuser WHERE id = ?',
+      [userId]
+    );
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('Delete user error:', err);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});     
+// Get all visitors
+app.get('/api/admin/visitors', authenticateJWT, async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [visitors] = await connection.query(
+      'SELECT * FROM visitors ORDER BY visit_date DESC'
+    );
+    connection.release();
+    res.json(visitors);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch visitors' });
+  }
+});
+
+// Get all vehicles with status
+app.get('/api/admin/vehicles', authenticateJWT, async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [vehicles] = await connection.query(
+      `SELECT v.*, CONCAT(u.firstname, ' ', u.lastname) as owner_name 
+       FROM vehicles v
+       JOIN studentstaffuser u ON v.email = u.email
+       ORDER BY v.created_at DESC`
+    );
+    connection.release();
+    res.json(vehicles);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch vehicles' });
+  }
+});
+
+// Update vehicle status
+app.put('/api/admin/vehicles/:id/status', authenticateJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!['Pending', 'Approved', 'Rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+
+    const connection = await pool.getConnection();
+    const [result] = await connection.query(
+      'UPDATE vehicles SET status = ? WHERE id = ?',
+      [status, id]
+    );
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    res.json({ message: 'Status updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// Approve all pending vehicles
+app.put('/api/admin/vehicles/approve-all', authenticateJWT, async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [result] = await connection.query(
+      'UPDATE vehicles SET status = "Approved" WHERE status = "Pending"'
+    );
+    connection.release();
+
+    res.json({ 
+      message: `${result.affectedRows} vehicles approved successfully` 
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve vehicles' });
+  }
+});
+// Delete vehicle
+app.delete('/api/admin/vehicles/:id', authenticateJWT, async (req, res) => {
+  try {
+    const connection = await pool.getConnection();
+    const [result] = await connection.query(
+      'DELETE FROM vehicles WHERE id = ?',
+      [req.params.id]
+    );
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+
+    res.json({ message: 'Vehicle deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete vehicle' });
+  }
+});  
+// Get all entry logs
+app.get('/api/admin/entry-logs', authenticateJWT, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const connection = await pool.getConnection();
+    const [logs] = await connection.query(`
+      SELECT 
+        el.id,
+        el.plate_number,
+        el.entry_time,
+        el.exit_time,
+        el.status,
+        CONCAT(u.firstname, ' ', u.lastname) as user_name
+      FROM entry_logs el
+      LEFT JOIN studentstaffuser u ON el.user_id = u.id
+      ORDER BY el.entry_time DESC
+      LIMIT 100
+    `);
+    connection.release();
+
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch entry logs' });
+  }
+}); 
+// Add new entry log
+app.post('/api/admin/entry-logs', authenticateJWT, async (req, res) => {
+  try {
+    const { plate_number, user_id, entry_status, access_method, notes } = req.body;
+    
+    const connection = await pool.getConnection();
+    const [result] = await connection.query(
+      `INSERT INTO entry_logs 
+       (plate_number, user_id, entry_status, access_method, notes)
+       VALUES (?, ?, ?, ?, ?)`,
+      [plate_number, user_id || null, entry_status, access_method, notes || null]
+    );
+    connection.release();
+
+    res.status(201).json({ 
+      message: 'Entry log created successfully',
+      logId: result.insertId
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create entry log' });
+  }
+});
+
+// Update exit status
+app.put('/api/admin/entry-logs/:id/exit', authenticateJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { exit_status, notes } = req.body;
+
+    const connection = await pool.getConnection();
+    const [result] = await connection.query(
+      `UPDATE entry_logs 
+       SET exit_time = NOW(), exit_status = ?, notes = CONCAT(IFNULL(notes, ''), ?)
+       WHERE id = ? AND exit_time IS NULL`,
+      [exit_status, notes ? `\nExit note: ${notes}` : '', id]
+    );
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Entry not found or already exited' });
+    }
+
+    res.json({ message: 'Exit recorded successfully' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update exit status' });
+  }
+});      
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
