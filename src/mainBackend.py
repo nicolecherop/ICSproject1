@@ -2,6 +2,7 @@ import cv2
 import imutils
 import pytesseract
 import os
+from datetime import datetime
 # import winsound
 
 os.makedirs('LicensePlatePictures', exist_ok=True)
@@ -23,7 +24,12 @@ while(True):
         save_path = os.path.abspath('LicensePlatePictures/car.jpg')
         print(f"Saving image to: {save_path}")
         cv2.imwrite('LicensePlatePictures/car.jpg', image) #saves image in this location
-        print("Image saved successfully")
+        # Record the timestamp
+        capture_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        print(f"Image saved successfully at {capture_time}")
+        # Optionally, save the timestamp to a file
+        with open('LicensePlatePictures/capture_time.txt', 'w') as f:
+            f.write(f"Capture time: {capture_time}\n")
         break
 
 vid.release()
@@ -115,6 +121,5 @@ for i in cnts:
 print("Press any key to exit...")
 cv2.waitKey(0)
 cv2.destroyAllWindows()
-
 
 
