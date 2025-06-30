@@ -5,6 +5,10 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const fileUpload = require('express-fileupload');
+const FormData = require('form-data');
+
+
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -16,6 +20,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(bodyParser.json());
+app.use(fileUpload());
+
 
 // Database connection pool
 const pool = mysql.createPool({
@@ -657,7 +663,7 @@ app.get('/api/admin/entry-logs', authenticateJWT, async (req, res) => {
         el.plate_number,
         el.entry_time,
         el.exit_time,
-        el.status,
+        el.entry_status,
         CONCAT(u.firstname, ' ', u.lastname) as user_name
       FROM entry_logs el
       LEFT JOIN studentstaffuser u ON el.user_id = u.id
@@ -717,7 +723,115 @@ app.put('/api/admin/entry-logs/:id/exit', authenticateJWT, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to update exit status' });
   }
-});      
+}); 
+// Endpoint to process license plate image
+app.post('/api/process-plate', authenticateJWT, async (req, res) => {
+  try {
+    if (!req.files || !req.files.image) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    const imageFile = req.files.image;
+    const action = req.body.action || 'entry';
+
+    // ✅ Use dynamic import for node-fetch
+    const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+
+    // ✅ Create FormData using form-data library (not browser FormData)
+    const FormData = require('form-data');
+    const formData = new FormData();
+    formData.append('image', imageFile.data, imageFile.name);
+    formData.append('action', action);
+
+    const pythonResponse = await fetch('http://localhost:5000/api/process-plate', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Authorization': req.headers['authorization'],
+        ...formData.getHeaders()
+      }
+    });
+
+    const result = await pythonResponse.json();
+
+    if (!pythonResponse.ok) {
+      return res.status(pythonResponse.status).json(result);
+    }
+
+    // Save log to MySQL
+    const connection = await pool.getConnection();
+    await connection.query(
+      'INSERT INTO entry_logs (plate_number, entry_status, access_method) VALUES (?, ?, ?)',
+      [result.plate_number, result.status, 'automatic']
+    );
+    connection.release();
+
+    res.json(result);
+  } catch (err) {
+    console.error('Plate processing error:', err);
+    res.status(500).json({ error: 'Failed to process license plate' });
+  }
+});
+
+// Get license plate logs
+app.get('/api/plate-logs', authenticateJWT, async (req, res) => {
+  try {
+    // Forward to Python service or get from your database
+    const connection = await pool.getConnection();
+    const [logs] = await connection.query(
+      'SELECT * FROM entry_logs ORDER BY entry_time DESC LIMIT 50'
+    );
+    connection.release();
+    
+    res.json(logs);
+  } catch (err) {
+    console.error('Error fetching plate logs:', err);
+    res.status(500).json({ error: 'Failed to fetch plate logs' });
+  }
+}); 
+// POST /api/manual-plate
+router.post('/manual-plate', authenticateToken, async (req, res) => {
+  const { plate_number, action } = req.body;
+
+  if (!plate_number || !['entry', 'exit'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid input' });
+  }
+
+  try {
+    const timestamp = new Date();
+    const status = 'granted';
+    const accessMethod = 'manual';
+
+    if (action === 'entry') {
+      await db.query(
+        `INSERT INTO entry_logs 
+         (plate_number, entry_status, entry_time, access_method, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [plate_number, status, timestamp, accessMethod, timestamp, timestamp]
+      );
+    } else if (action === 'exit') {
+      await db.query(
+        `UPDATE entry_logs 
+         SET exit_time = ?, exit_status = ?, updated_at = ? 
+         WHERE plate_number = ? 
+         ORDER BY entry_time DESC 
+         LIMIT 1`,
+        [timestamp, 'normal', timestamp, plate_number]
+      );
+    }
+
+    return res.json({
+      status,
+      plate_number,
+      action,
+      timestamp
+    });
+  } catch (err) {
+    console.error('Manual entry error:', err);
+    res.status(500).json({ error: 'Failed to log manual plate' });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

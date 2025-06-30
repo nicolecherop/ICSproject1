@@ -1,19 +1,20 @@
-import React, { useState, useEffect,useRef  } from 'react';
+import React, { useState, useEffect,useRef,useCallback    } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminDashboard.css';
+import { FaCamera, FaCheckCircle, FaTimesCircle, FaHistory } from 'react-icons/fa';
+
+
 import { 
   FaHome, 
   FaUsers, 
-  FaShoppingCart, 
   FaChartBar, 
   FaCog,
   FaUserCircle,
-  FaEdit,
   FaTrash,
   FaSearch,
-  FaPlus,
   FaSignOutAlt,
-  FaSync
+  FaSync,
+  FaPrint
 } from 'react-icons/fa';
 
 const AdminDashboard = () => {
@@ -86,8 +87,8 @@ const AdminDashboard = () => {
       case 'users': return <UsersContent />;
       case 'visitors': return <VisitorsContent />;
       case 'vehicles': return <VehiclesContent />;
-      case 'analytics': return <AnalyticsContent />;
-      case 'settings': return <SettingsContent />;
+      case 'gateaccess': return <GateAccessContent />;
+      case 'entrylogs': return <EntrylogsContent />;
       default: 
         return <DashboardContent 
           stats={stats} 
@@ -133,22 +134,22 @@ const AdminDashboard = () => {
               className={activeTab === 'vehicles' ? 'active' : ''}
               onClick={() => setActiveTab('vehicles')}
             >
-              <FaShoppingCart className="icon" />
+              <FaChartBar className="icon" />
               <span>Vehicles</span>
             </li>
             <li 
-              className={activeTab === 'analytics' ? 'active' : ''}
-              onClick={() => setActiveTab('analytics')}
+              className={activeTab === 'gateaccess' ? 'active' : ''}
+              onClick={() => setActiveTab('gateaccess')}
             >
-              <FaChartBar className="icon" />
+              <FaCamera className="icon" />
               <span>Camera access</span>
             </li>
             <li 
-              className={activeTab === 'settings' ? 'active' : ''}
-              onClick={() => setActiveTab('settings')}
+              className={activeTab === 'entrylogs' ? 'active' : ''}
+              onClick={() => setActiveTab('entrylogs')}
             >
               <FaCog className="icon" />
-              <span>Gate Access</span>
+              <span>Entry Logs</span>
             </li>
           </ul>
         </nav>
@@ -703,78 +704,347 @@ const VehiclesContent = () => {
   );
 };
 
-const AnalyticsContent = () => {
-  const [activeCamera, setActiveCamera] = useState(null);
+const GateAccessContent = () => {
+  const [processing, setProcessing] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+  const [cameraError, setCameraError] = useState(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraInitialized, setCameraInitialized] = useState(false);
+  const [manualPlate, setManualPlate] = useState('');
+  const [manualAction, setManualAction] = useState('entry');
+  const [showManualInput, setShowManualInput] = useState(false);
+
   const videoRef = useRef(null);
-  const streamRef = useRef(null); // to store the MediaStream
+  const streamRef = useRef(null);
+  const retryTimeoutRef = useRef(null); // ✅ Now defined!
 
-  const openCamera = async (label) => {
-    setActiveCamera(label);
+  const startCamera = useCallback(async () => {
+    try {
+      setCameraError(null);
 
-    // Stop any existing stream before starting a new one
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+
+      if (!videoRef.current) {
+        console.warn("Video element not available, will retry...");
+        retryTimeoutRef.current = setTimeout(startCamera, 100);
+        return;
+      }
+
+      if (streamRef.current) stopCamera();
+
+      const constraints = {
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      if (!videoRef.current) {
+        stream.getTracks().forEach(track => track.stop());
+        throw new Error("Video element was removed during initialization");
+      }
+
+      videoRef.current.srcObject = stream;
+      streamRef.current = stream;
+
+      const waitForVideoReady = () => {
+        return new Promise((resolve, reject) => {
+          const videoElement = videoRef.current;
+          if (!videoElement) return reject(new Error("Video element not available"));
+
+          const cleanUp = () => {
+            try {
+              videoElement.removeEventListener('canplay', onCanPlay);
+              videoElement.removeEventListener('error', onError);
+              clearTimeout(timeout);
+            } catch (cleanupError) {
+              console.warn("Cleanup error:", cleanupError);
+            }
+          };
+
+          const onCanPlay = () => {
+            cleanUp();
+            resolve();
+          };
+
+          const onError = () => {
+            cleanUp();
+            reject(new Error("Video playback error"));
+          };
+
+          videoElement.addEventListener('canplay', onCanPlay);
+          videoElement.addEventListener('error', onError);
+
+          const timeout = setTimeout(() => {
+            cleanUp();
+            reject(new Error("Video initialization timeout"));
+          }, 2000);
+        });
+      };
+
+      await waitForVideoReady();
+      setCameraActive(true);
+      setCameraInitialized(true);
+    } catch (err) {
+      console.error("Camera error:", err);
+      setCameraError(err.message);
+      setCameraActive(false);
+      setCameraInitialized(false);
+      stopCamera();
+
+      if (err.name !== 'NotAllowedError' && err.name !== 'PermissionDeniedError') {
+        retryTimeoutRef.current = setTimeout(startCamera, 1000);
+      }
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    try {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          track.stop();
+          track.enabled = false;
+        });
+        streamRef.current = null;
+      }
+
+      const videoElement = videoRef.current;
+      if (videoElement) {
+        videoElement.pause();
+        videoElement.srcObject = null;
+      }
+    } catch (err) {
+      console.error("Error in stopCamera:", err);
+    }
+
+    setCameraActive(false);
+    setCameraInitialized(false);
+  }, []);
+
+  const captureAndProcess = async (action) => {
+    if (!cameraActive || processing || !videoRef.current) return;
+
+    try {
+      setProcessing(true);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoRef.current, 0, 0);
+
+      const blob = await new Promise(resolve => {
+        canvas.toBlob(resolve, 'image/jpeg', 0.9);
+      });
+
+      const formData = new FormData();
+      formData.append('image', blob, 'plate.jpg');
+      formData.append('action', action);
+
+      const token = localStorage.getItem('staffToken');
+      const response = await fetch('http://localhost:5000/api/process-plate', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Plate processing failed');
+      }
+
+      const data = await response.json();
+      setLastResult(data);
+    } catch (error) {
+      console.error('Processing error:', error);
+      setCameraError(error.message);
+    } finally {
+      stopCamera();
+      setProcessing(false);
+    }
+  };
+
+  const submitManualEntry = async () => {
+    if (!manualPlate.trim()) {
+      alert('Please enter a plate number.');
+      return;
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        videoRef.current.play();
-      }
+      setProcessing(true);
+      const token = localStorage.getItem('staffToken');
+      const response = await fetch('http://localhost:5000/api/manual-plate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          plate_number: manualPlate.trim(),
+          action: manualAction
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Manual entry failed');
+
+      setLastResult(result);
+      setShowManualInput(false);
+      setManualPlate('');
     } catch (err) {
-      console.error('Error accessing webcam:', err);
+      console.error("Manual entry error:", err);
+      setCameraError(err.message);
+    } finally {
+      setProcessing(false);
     }
   };
 
-  const turnOffCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setActiveCamera(null);
-  };
+  useEffect(() => {
+    startCamera();
+    return () => stopCamera();
+  }, [startCamera, stopCamera]);
 
   return (
     <div className="analytics-content">
-      <h2>Camera Access</h2>
-      <div className="charts-container">
-        <div className="chart">
-          <h3>IN</h3>
-          <button onClick={() => openCamera('IN')}>Open IN Camera</button>
-        </div>
+      <h2><FaCamera /> Vehicle Access Control</h2>
 
-        <div className="chart">
-          <h3>OUT</h3>
-          <button onClick={() => openCamera('OUT')}>Open OUT Camera</button>
-        </div>
+      <div className="camera-section">
+        {cameraError ? (
+          <div className="error-message">
+            <p>{cameraError}</p>
+            <button
+              onClick={startCamera}
+              className="btn retry-btn"
+              disabled={cameraError.includes('PermissionDenied')}
+            >
+              {cameraError.includes('PermissionDenied') ? 'Camera Blocked' : 'Retry Camera'}
+            </button>
+          </div>
+        ) : (
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="camera-feed"
+              style={{ display: cameraActive ? 'block' : 'none' }}
+            />
+            {!cameraInitialized && (
+              <div className="camera-placeholder">
+                <p>{cameraActive ? 'Initializing...' : 'Camera Off'}</p>
+              </div>
+            )}
+            <div className="camera-controls">
+              {cameraActive ? (
+                <button onClick={stopCamera} className="btn stop-btn">Stop Camera</button>
+              ) : (
+                <button onClick={startCamera} className="btn start-btn">Start Camera</button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      {activeCamera && (
-        <div className="camera-preview">
-          <video ref={videoRef} width="360" height="260" autoPlay muted />
-          <button onClick={turnOffCamera} style={{ marginTop: '10px' }}>
-            Turn Off Camera
-          </button>
+      <div className="action-buttons">
+        <button
+          onClick={() => captureAndProcess('entry')}
+          disabled={!cameraActive || processing}
+          className={`btn entry-btn ${processing ? 'processing' : ''}`}
+        >
+          {processing ? 'Processing...' : 'Log Entry'}
+        </button>
+        <button
+          onClick={() => captureAndProcess('exit')}
+          disabled={!cameraActive || processing}
+          className={`btn exit-btn ${processing ? 'processing' : ''}`}
+        >
+          {processing ? 'Processing...' : 'Log Exit'}
+        </button>
+      </div>
+
+      <div className="manual-override">
+        <button className="btn manual-btn" onClick={() => setShowManualInput(true)}>
+          Manual Entry Override
+        </button>
+        {showManualInput && (
+          <div className="manual-form">
+            <h4>Manual Plate Entry</h4>
+            <input
+              type="text"
+              value={manualPlate}
+              onChange={(e) => setManualPlate(e.target.value)}
+              placeholder="Enter plate number"
+            />
+            <select value={manualAction} onChange={(e) => setManualAction(e.target.value)}>
+              <option value="entry">Entry</option>
+              <option value="exit">Exit</option>
+            </select>
+            <div className="manual-buttons">
+              <button onClick={submitManualEntry} className="btn submit-manual" disabled={processing}>
+                {processing ? 'Submitting...' : 'Submit'}
+              </button>
+              <button onClick={() => setShowManualInput(false)} className="btn cancel-manual">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {lastResult && (
+        <div className={`result-card ${lastResult.status}`}>
+          <div className="result-icon">
+            {lastResult.status === 'granted' ? (
+              <FaCheckCircle className="success" />
+            ) : (
+              <FaTimesCircle className="error" />
+            )}
+          </div>
+          <div className="result-details">
+            <h3>Last Action Result</h3>
+            <p><strong>Plate:</strong> {lastResult.plate_number}</p>
+            <p><strong>Status:</strong> <span className={`status-text ${lastResult.status}`}>{lastResult.status.toUpperCase()}</span></p>
+            <p><strong>Time:</strong> {new Date(lastResult.timestamp).toLocaleString()}</p>
+          </div>
         </div>
       )}
     </div>
   );
 };
-
-
-const SettingsContent = () => {
+const EntrylogsContent = () => {
   const [entryLogs, setEntryLogs] = useState([]);
+  const [filteredLogs, setFilteredLogs] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const tableRef = useRef();
 
   useEffect(() => {
     fetchEntryLogs();
   }, []);
+
+  useEffect(() => {
+    const filtered = entryLogs.filter(log =>
+      log.plate_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.entry_status?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredLogs(filtered);
+  }, [searchTerm, entryLogs]);
 
   const fetchEntryLogs = async () => {
     try {
@@ -784,11 +1054,12 @@ const SettingsContent = () => {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) throw new Error('Failed to fetch entry logs');
-      
+
       const data = await response.json();
       setEntryLogs(data);
+      setFilteredLogs(data);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -796,81 +1067,87 @@ const SettingsContent = () => {
     }
   };
 
+  const handlePrint = () => {
+    const printContents = tableRef.current.innerHTML;
+    const printWindow = window.open('', '', 'height=600,width=800');
+    printWindow.document.write('<html><head><title>Print Entry Logs</title>');
+    printWindow.document.write('<style>table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #000; padding: 8px; text-align: center; } th { background-color: #eee; }</style>');
+    printWindow.document.write('</head><body>');
+    printWindow.document.write('<h3>Entry Logs</h3>');
+    printWindow.document.write(printContents);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.print();
+  };
+
   if (loading) return <div className="loading-spinner">Loading entry logs...</div>;
   if (error) return <div className="error-message">Error: {error}</div>;
 
   return (
     <div className="settings-content">
-      <h2>Gate Access Settings</h2>
-      
-      <div className="settings-form">
-        <div className="form-group">
-          <label>Gate Open Time</label>
-          <input type="time" defaultValue="06:00" />
-        </div>
-        <div className="form-group">
-          <label>Gate Close Time</label>
-          <input type="time" defaultValue="22:00" />
-        </div>
-        <div className="form-group">
-          <label>Access Mode</label>
-          <select>
-            <option>Automatic</option>
-            <option>Manual</option>
-            <option>Scheduled</option>
-          </select>
-        </div>
-        <button className="save-btn">Save Settings</button>
-      </div>
-
       <div className="entry-logs-section">
-        <h3>Entry Logs</h3>
+        <div className="logs-header">
+          <h3>Entry Logs</h3>
+          <button onClick={handlePrint} className="print-button">
+            <FaPrint style={{ marginRight: '5px' }} />
+            Print
+          </button>
+        </div>
+
         <div className="search-bar">
           <FaSearch className="search-icon" />
-          <input 
-            type="text" 
-            placeholder="Search entry logs..." 
+          <input
+            type="text"
+            placeholder="Search by plate, user, or status..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        
-        <table className="entry-logs-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Plate Number</th>
-              <th>User</th>
-              <th>Entry Time</th>
-              <th>Exit Time</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entryLogs.length > 0 ? (
-              entryLogs.map(log => (
-                <tr key={log.id}>
-                  <td>{log.id}</td>
-                  <td>{log.plate_number}</td>
-                  <td>{log.user_name || 'Visitor'}</td>
-                  <td>{new Date(log.entry_time).toLocaleString()}</td>
-                  <td>{log.exit_time ? new Date(log.exit_time).toLocaleString() : 'Still inside'}</td>
-                  <td className={`status-${log.status.toLowerCase()}`}>
-                    {log.status}
+
+        <div ref={tableRef}>
+          <table className="entry-logs-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Plate Number</th>
+                <th>User</th>
+                <th>Entry Time</th>
+                <th>Exit Time</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLogs.length > 0 ? (
+                filteredLogs.map(log => (
+                  <tr key={log.id}>
+                    <td>{log.id}</td>
+                    <td>{log.plate_number}</td>
+                    <td>{log.user_name || 'Visitor'}</td>
+                    <td>{log.entry_time ? new Date(log.entry_time).toLocaleString() : 'N/A'}</td>
+                    <td>{log.exit_time ? new Date(log.exit_time).toLocaleString() : 'Still inside'}</td>
+                    <td className={`status-${(log.entry_status || 'unknown').toLowerCase()}`}>
+                      {log.entry_status || 'Unknown'}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="no-results">
+                    No matching entry logs found
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="6" className="no-results">
-                  No entry logs found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 };
+
+
+
+
 
 
 export default AdminDashboard;
