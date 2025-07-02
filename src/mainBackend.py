@@ -229,6 +229,62 @@ def get_logs():
         if conn and conn.is_connected():
             cursor.close()
             conn.close()
+            
+@app.route('/api/manual-plate', methods=['POST'])
+def manual_plate_entry():
+    try:
+        data = request.get_json()
+        plate_number = data.get('plate_number', '').strip().upper()
+        action = data.get('action', '').lower()
+
+        if not plate_number or action not in ['entry', 'exit']:
+            return jsonify({'success': False, 'error': 'Invalid plate number or action'}), 400
+
+        is_registered = check_plate_in_database(plate_number)
+        status = 'granted' 
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'success': False, 'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+        current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        if action == 'entry':
+            # Create new entry
+            cursor.execute('''
+                INSERT INTO entry_logs 
+                (plate_number, entry_time, entry_status, access_method)
+                VALUES (%s, %s, %s, %s)
+            ''', (plate_number, current_datetime, status, 'manual'))
+        elif action == 'exit':
+            # Update the latest log for this plate with no exit_time
+            cursor.execute('''
+                UPDATE entry_logs
+                SET exit_time = %s
+                WHERE plate_number = %s AND exit_time IS NULL
+                ORDER BY entry_time DESC
+                LIMIT 1
+            ''', (current_datetime, plate_number))
+
+        conn.commit()
+
+        return jsonify({
+            'success': True,
+            'plate_number': plate_number,
+            'status': status,
+            'action': action,
+            'timestamp': current_datetime
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+    finally:
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
+
 
 # ---------- Main ----------
 
