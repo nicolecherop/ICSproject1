@@ -11,13 +11,13 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
-# Configuration
+
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs('LicensePlatePictures', exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Tesseract path (adjust if needed)
+
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 DB_CONFIG = {
@@ -27,7 +27,7 @@ DB_CONFIG = {
     'database': 'gatesecurity'
 }
 
-# ---------- Utility Functions ----------
+
 
 def get_db_connection():
     try:
@@ -286,7 +286,7 @@ def manual_plate_entry():
             conn.close()
 
 
-# ---------- Main ----------
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, threaded=True)
