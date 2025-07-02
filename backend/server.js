@@ -648,10 +648,9 @@ app.delete('/api/admin/vehicles/:id', authenticateJWT, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete vehicle' });
   }
 });  
-// Get all entry logs
+// Get entry logs
 app.get('/api/admin/entry-logs', authenticateJWT, async (req, res) => {
   try {
-    // Check if user is admin
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
@@ -659,15 +658,14 @@ app.get('/api/admin/entry-logs', authenticateJWT, async (req, res) => {
     const connection = await pool.getConnection();
     const [logs] = await connection.query(`
       SELECT 
-        el.id,
-        el.plate_number,
-        el.entry_time,
-        el.exit_time,
-        el.entry_status,
-        CONCAT(u.firstname, ' ', u.lastname) as user_name
-      FROM entry_logs el
-      LEFT JOIN studentstaffuser u ON el.user_id = u.id
-      ORDER BY el.entry_time DESC
+        id,
+        plate_number,
+        entry_time,
+        exit_time,
+        entry_status,
+        exit_status
+      FROM entry_logs
+      ORDER BY entry_time DESC
       LIMIT 100
     `);
     connection.release();
@@ -676,7 +674,8 @@ app.get('/api/admin/entry-logs', authenticateJWT, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch entry logs' });
   }
-}); 
+});
+
 // Add new entry log
 app.post('/api/admin/entry-logs', authenticateJWT, async (req, res) => {
   try {
@@ -734,10 +733,7 @@ app.post('/api/process-plate', authenticateJWT, async (req, res) => {
     const imageFile = req.files.image;
     const action = req.body.action || 'entry';
 
-    // ✅ Use dynamic import for node-fetch
     const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-
-    // ✅ Create FormData using form-data library (not browser FormData)
     const FormData = require('form-data');
     const formData = new FormData();
     formData.append('image', imageFile.data, imageFile.name);
@@ -753,25 +749,61 @@ app.post('/api/process-plate', authenticateJWT, async (req, res) => {
     });
 
     const result = await pythonResponse.json();
+    const plate = result.plate_number;
+    let status = result.status || 'granted';
 
-    if (!pythonResponse.ok) {
-      return res.status(pythonResponse.status).json(result);
+    const connection = await pool.getConnection();
+
+    const [lastLogs] = await connection.query(
+      `SELECT * FROM entry_logs 
+       WHERE plate_number = ? 
+       ORDER BY entry_time DESC 
+       LIMIT 1`,
+      [plate]
+    );
+
+    const lastLog = lastLogs[0];
+
+    if (action === 'entry') {
+      if (lastLog && !lastLog.exit_time) {
+        status = 'denied';
+      } else {
+        await connection.query(
+          `INSERT INTO entry_logs (plate_number, entry_status, access_method) 
+           VALUES (?, ?, 'automatic')`,
+          [plate, status]
+        );
+        connection.release();
+        return res.json({ plate_number: plate, status });
+      }
     }
 
-    // Save log to MySQL
-    const connection = await pool.getConnection();
+    if (action === 'exit') {
+  if (!lastLog || lastLog.exit_time || lastLog.entry_status !== 'granted') {
+    status = 'denied';
+  } else {
+    status = 'granted'; 
     await connection.query(
-      'INSERT INTO entry_logs (plate_number, entry_status, access_method) VALUES (?, ?, ?)',
-      [result.plate_number, result.status, 'automatic']
+      `UPDATE entry_logs 
+       SET exit_time = NOW(), exit_status = ?, access_method = 'automatic' 
+       WHERE id = ?`,
+      [status, lastLog.id]
     );
     connection.release();
+    return res.json({ plate_number: plate, status });
+  }
+}
 
-    res.json(result);
+
+    connection.release();
+    return res.json({ plate_number: plate, status });
+
   } catch (err) {
     console.error('Plate processing error:', err);
     res.status(500).json({ error: 'Failed to process license plate' });
   }
 });
+
 
 // Get license plate logs
 app.get('/api/plate-logs', authenticateJWT, async (req, res) => {
@@ -789,49 +821,89 @@ app.get('/api/plate-logs', authenticateJWT, async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch plate logs' });
   }
 }); 
-// POST /api/manual-plate
-router.post('/manual-plate', authenticateToken, async (req, res) => {
-  const { plate_number, action } = req.body;
-
-  if (!plate_number || !['entry', 'exit'].includes(action)) {
-    return res.status(400).json({ error: 'Invalid input' });
-  }
-
+app.post('/api/manual-plate', authenticateJWT, async (req, res) => {
   try {
-    const timestamp = new Date();
-    const status = 'granted';
-    const accessMethod = 'manual';
+    const { plate_number, action } = req.body;
 
-    if (action === 'entry') {
-      await db.query(
-        `INSERT INTO entry_logs 
-         (plate_number, entry_status, entry_time, access_method, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [plate_number, status, timestamp, accessMethod, timestamp, timestamp]
-      );
-    } else if (action === 'exit') {
-      await db.query(
-        `UPDATE entry_logs 
-         SET exit_time = ?, exit_status = ?, updated_at = ? 
-         WHERE plate_number = ? 
-         ORDER BY entry_time DESC 
-         LIMIT 1`,
-        [timestamp, 'normal', timestamp, plate_number]
-      );
+    if (!plate_number || !action) {
+      return res.status(400).json({ error: 'Missing plate number or action' });
     }
 
-    return res.json({
-      status,
-      plate_number,
-      action,
-      timestamp
-    });
+    const connection = await pool.getConnection();
+
+    
+    const [lastLogs] = await connection.query(
+      `SELECT * FROM entry_logs 
+       WHERE plate_number = ? 
+       ORDER BY entry_time DESC 
+       LIMIT 1`,
+      [plate_number]
+    );
+
+    const lastLog = lastLogs[0];
+    let status = 'granted';
+
+    if (action === 'entry') {
+      
+      if (lastLog && !lastLog.exit_time) {
+        status = 'denied';
+      } else {
+        
+        await connection.query(
+          `INSERT INTO entry_logs (plate_number, entry_status, access_method) 
+           VALUES (?, ?, 'manual')`,
+          [plate_number, status]
+        );
+        connection.release();
+        return res.json({ plate_number, status });
+      }
+    }
+
+    if (action === 'exit') {
+  if (!lastLog || lastLog.exit_time || lastLog.entry_status !== 'granted') {
+    status = 'denied';
+  } else {
+    status = 'granted'; 
+    await connection.query(
+      `UPDATE entry_logs 
+       SET exit_time = NOW(), exit_status = ?, access_method = 'manual' 
+       WHERE id = ?`,
+      [status, lastLog.id]
+    );
+    connection.release();
+    return res.json({ plate_number, status });
+  }
+}
+
+
+
+    connection.release();
+    return res.json({ plate_number, status });
+
   } catch (err) {
-    console.error('Manual entry error:', err);
+    console.error('Manual plate forwarding error:', err);
     res.status(500).json({ error: 'Failed to log manual plate' });
   }
 });
+app.delete('/api/admin/visitors/:id', authenticateJWT, async (req, res) => {
+  try {
+    const visitorId = req.params.id;
 
+    const connection = await pool.getConnection();
+    const [result] = await connection.query('DELETE FROM visitors WHERE id = ?', [visitorId]);
+    connection.release();
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Visitor not found' });
+    }
+
+    res.json({ message: 'Visitor deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting visitor:', err);
+    res.status(500).json({ error: 'Failed to delete visitor' });
+  }
+});
+ 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect,useRef,useCallback    } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminDashboard.css';
-import { FaCamera, FaCheckCircle, FaTimesCircle, FaHistory } from 'react-icons/fa';
+import { FaCamera, FaCheckCircle, FaTimesCircle} from 'react-icons/fa';
 
 
 import { 
@@ -53,7 +53,7 @@ const AdminDashboard = () => {
       }
 
       const statsData = await statsResponse.json();
-      const vehiclesData = await vehiclesResponse.json();
+      
 
       setStats({
         totalUsers: statsData.totalUsers,
@@ -142,7 +142,7 @@ const AdminDashboard = () => {
               onClick={() => setActiveTab('gateaccess')}
             >
               <FaCamera className="icon" />
-              <span>Camera access</span>
+              <span>Camera Gate access</span>
             </li>
             <li 
               className={activeTab === 'entrylogs' ? 'active' : ''}
@@ -407,11 +407,15 @@ const UsersContent = () => {
   );
 };
 
+
+
 const VisitorsContent = () => {
   const [visitors, setVisitors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [visitorToDelete, setVisitorToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     fetchVisitors();
@@ -437,6 +441,28 @@ const VisitorsContent = () => {
     }
   };
 
+  const deleteVisitor = async () => {
+    try {
+      const token = localStorage.getItem('staffToken');
+      const response = await fetch(`http://localhost:5000/api/admin/visitors/${visitorToDelete}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) throw new Error('Failed to delete visitor');
+
+      // Refresh list
+      fetchVisitors();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setShowDeleteConfirm(false);
+      setVisitorToDelete(null);
+    }
+  };
+
   const filteredVisitors = visitors.filter(visitor => 
     `${visitor.first_name} ${visitor.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
     visitor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -449,6 +475,7 @@ const VisitorsContent = () => {
   return (
     <div className="visitors-content">
       <h2>Visitors Management</h2>
+
       <div className="search-bar">
         <FaSearch className="search-icon" />
         <input 
@@ -458,7 +485,21 @@ const VisitorsContent = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
-      
+
+      {/* 🔴 Delete confirmation modal */}
+      {showDeleteConfirm && (
+        <div className="confirmation-card">
+          <div className="confirmation-content">
+            <h3>Confirm Deletion</h3>
+            <p>Are you sure you want to delete this visitor?</p>
+            <div className="confirmation-buttons">
+              <button className="confirm-btn" onClick={deleteVisitor}>Delete</button>
+              <button className="cancel-btn" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <table>
         <thead>
           <tr>
@@ -468,6 +509,7 @@ const VisitorsContent = () => {
             <th>Vehicle</th>
             <th>Visit Date</th>
             <th>Reason</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -480,11 +522,22 @@ const VisitorsContent = () => {
                 <td>{visitor.number_plate}</td>
                 <td>{new Date(visitor.visit_date).toLocaleDateString()}</td>
                 <td>{visitor.visit_reason === 'Other' ? visitor.other_reason : visitor.visit_reason}</td>
+                <td>
+                  <button
+                    className="delete-btn"
+                    onClick={() => {
+                      setVisitorToDelete(visitor.id);
+                      setShowDeleteConfirm(true);
+                    }}
+                  >
+                    <FaTrash /> Delete
+                  </button>
+                </td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan="6" className="no-results">
+              <td colSpan="7" className="no-results">
                 No visitors found
               </td>
             </tr>
@@ -495,6 +548,9 @@ const VisitorsContent = () => {
   );
 };
 
+
+
+
 const VehiclesContent = () => {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -503,6 +559,7 @@ const VehiclesContent = () => {
   const [approvingAll, setApprovingAll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     fetchVehicles();
@@ -597,9 +654,14 @@ const VehiclesContent = () => {
     }
   };
 
-  const filteredVehicles = vehicles.filter(vehicle => 
-    filter === 'All' || vehicle.status === filter
-  );
+  const filteredVehicles = vehicles.filter(vehicle => {
+    const matchesFilter = filter === 'All' || vehicle.status === filter;
+    const matchesSearch = vehicle.numberplate?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          vehicle.owner_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          vehicle.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          vehicle.car_description?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
 
   if (loading) return <div className="loading-spinner"></div>;
   if (error) return <div className="error-message">{error}</div>;
@@ -626,7 +688,19 @@ const VehiclesContent = () => {
           {approvingAll ? 'Approving...' : 'Approve All Pending'}
         </button>
       </div>
-      
+
+    
+      <div className="search-bar" style={{ margin: '10px 0' }}>
+         <FaSearch className="search-icon" />
+        <input
+          type="text"
+          placeholder="Search vehicles..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{ padding: '6px', width: '100%', maxWidth: '400px' }}
+        />
+      </div>
+
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div className="confirmation-card">
@@ -703,6 +777,9 @@ const VehiclesContent = () => {
     </div>
   );
 };
+
+
+
 
 const GateAccessContent = () => {
   const [processing, setProcessing] = useState(false);
@@ -978,7 +1055,7 @@ const GateAccessContent = () => {
 
       <div className="manual-override">
         <button className="btn manual-btn" onClick={() => setShowManualInput(true)}>
-          Manual Entry Override
+          Manual Gate Override
         </button>
         {showManualInput && (
           <div className="manual-form">
@@ -1018,7 +1095,6 @@ const GateAccessContent = () => {
             <h3>Last Action Result</h3>
             <p><strong>Plate:</strong> {lastResult.plate_number}</p>
             <p><strong>Status:</strong> <span className={`status-text ${lastResult.status}`}>{lastResult.status.toUpperCase()}</span></p>
-            <p><strong>Time:</strong> {new Date(lastResult.timestamp).toLocaleString()}</p>
           </div>
         </div>
       )}
@@ -1037,14 +1113,14 @@ const EntrylogsContent = () => {
     fetchEntryLogs();
   }, []);
 
-  useEffect(() => {
-    const filtered = entryLogs.filter(log =>
-      log.plate_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.entry_status?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    setFilteredLogs(filtered);
-  }, [searchTerm, entryLogs]);
+ useEffect(() => {
+  const filtered = entryLogs.filter(log =>
+    log.plate_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    log.entry_status?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    log.exit_status?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  setFilteredLogs(filtered);
+}, [searchTerm, entryLogs]);
 
   const fetchEntryLogs = async () => {
     try {
@@ -1078,6 +1154,7 @@ const EntrylogsContent = () => {
     printWindow.document.write('</body></html>');
     printWindow.document.close();
     printWindow.print();
+    
   };
 
   if (loading) return <div className="loading-spinner">Loading entry logs...</div>;
@@ -1098,48 +1175,54 @@ const EntrylogsContent = () => {
           <FaSearch className="search-icon" />
           <input
             type="text"
-            placeholder="Search by plate, user, or status..."
+            placeholder="Search"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
         <div ref={tableRef}>
-          <table className="entry-logs-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Plate Number</th>
-                <th>User</th>
-                <th>Entry Time</th>
-                <th>Exit Time</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredLogs.length > 0 ? (
-                filteredLogs.map(log => (
-                  <tr key={log.id}>
-                    <td>{log.id}</td>
-                    <td>{log.plate_number}</td>
-                    <td>{log.user_name || 'Visitor'}</td>
-                    <td>{log.entry_time ? new Date(log.entry_time).toLocaleString() : 'N/A'}</td>
-                    <td>{log.exit_time ? new Date(log.exit_time).toLocaleString() : 'Still inside'}</td>
-                    <td className={`status-${(log.entry_status || 'unknown').toLowerCase()}`}>
-                      {log.entry_status || 'Unknown'}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="no-results">
-                    No matching entry logs found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <table className="entry-logs-table">
+  <thead>
+    <tr>
+      <th>Plate Number</th>
+      <th>Entry Time</th>
+      <th>Exit Time</th>
+      <th>Entry Status</th>
+      <th>Exit Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {filteredLogs.length > 0 ? (
+      filteredLogs.map(log => (
+        <tr key={log.id}>
+          <td>{log.plate_number}</td>
+          <td>{log.entry_time ? new Date(log.entry_time).toLocaleString() : 'N/A'}</td>
+         <td>
+  {log.entry_status === 'granted'
+    ? (log.exit_time ? new Date(log.exit_time).toLocaleString() : 'Still inside')
+    : 'Not allowed in'}
+</td>
+
+          <td className={`status-${(log.entry_status || 'unknown').toLowerCase()}`}>
+            {log.entry_status || 'Unknown'}
+          </td>
+          <td className={`status-${(log.exit_status || 'unknown').toLowerCase()}`}>
+            {log.exit_status || 'N/A'}
+          </td>
+        </tr>
+      ))
+    ) : (
+      <tr>
+        <td colSpan="5" className="no-results">
+          No matching entry logs found
+        </td>
+      </tr>
+    )}
+  </tbody>
+</table>
+</div>
+
       </div>
     </div>
   );
