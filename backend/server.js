@@ -56,19 +56,19 @@ app.post('/api/register', async (req, res) => {
     const lastname = req.body.lastname?.trim();
     const email = req.body.email?.trim().toLowerCase();
     const password = req.body.password?.trim();
-    const role = 'user'; // Default role
+    const role = 'user'; 
 
-    // Validate required fields
+    
     if (!firstname || !lastname || !email || !password) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    // Validate email format
+    
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'Invalid email format' });
     }
 
-    // Validate password strength
+    
     if (password.length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
@@ -86,7 +86,7 @@ app.post('/api/register', async (req, res) => {
       return res.status(409).json({ error: 'Email already registered' });
     }
 
-    // Hash password
+   
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Insert new user
@@ -234,7 +234,7 @@ app.post('/api/visitor/register', async (req, res) => {
 
     const connection = await pool.getConnection();
 
-    // ✅ Check for duplicate plate on same date
+    // Check for duplicate plate on same date
     const [existing] = await connection.query(
       `SELECT id FROM visitors WHERE number_plate = ? AND visit_date = ?`,
       [trimmedPlate, trimmedDate]
@@ -302,7 +302,7 @@ app.post('/api/submit-vehicle', authenticateJWT, async (req, res) => {
       return res.status(409).json({ error: 'This vehicle has already been registered' });
     }
     
-    // Insert into vehicles table WITHOUT specifying ID
+    // Insert into vehicles table
     const [result] = await connection.query(
       `INSERT INTO vehicles 
       (email, numberplate, car_description, status, created_at) 
@@ -413,7 +413,6 @@ app.delete('/api/delete-vehicle/:id', authenticateJWT, async (req, res) => {
     const userEmail = req.user.email;
     const connection = await pool.getConnection();
 
-    // Check ownership
     const [vehicle] = await connection.query(
       'SELECT * FROM vehicles WHERE id = ? AND email = ?',
       [id, userEmail]
@@ -442,7 +441,7 @@ app.delete('/api/delete-vehicle/:id', authenticateJWT, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete vehicle' });
   }
 });
-// Admin stats endpoint - Still needs work next priority remember
+// Admin stats endpoint
 app.get('/api/admin/stats', authenticateJWT, async (req, res) => {
   try {
     // Check if user is admin
@@ -461,7 +460,7 @@ app.get('/api/admin/stats', authenticateJWT, async (req, res) => {
       return res.status(500).json({ error: 'studentstaffuser table does not exist' });
     }
 
-    // Get counts with error handling
+    // Get counts 
     let usersCount, visitorsCount, pendingVehicles;
     
     try {
@@ -493,7 +492,6 @@ app.get('/api/admin/stats', authenticateJWT, async (req, res) => {
     
     connection.release();
 
-    // Debug output
    
     res.json({
       totalUsers: usersCount[0].count,
@@ -510,7 +508,7 @@ app.get('/api/admin/stats', authenticateJWT, async (req, res) => {
   }
 });
 
-// Get all users (admin only)
+// Get all users 
 app.get('/api/admin/users', authenticateJWT, async (req, res) => {
   try {
 
@@ -527,7 +525,7 @@ app.get('/api/admin/users', authenticateJWT, async (req, res) => {
   }
 });
 
-// Delete user (admin only)
+// Delete user 
 app.delete('/api/admin/users/:id', authenticateJWT, async (req, res) => {
   try {
     
@@ -723,7 +721,7 @@ app.put('/api/admin/entry-logs/:id/exit', authenticateJWT, async (req, res) => {
     res.status(500).json({ error: 'Failed to update exit status' });
   }
 }); 
-// Endpoint to process license plate image
+// process license plate image
 app.post('/api/process-plate', authenticateJWT, async (req, res) => {
   try {
     if (!req.files || !req.files.image) {
@@ -805,10 +803,9 @@ app.post('/api/process-plate', authenticateJWT, async (req, res) => {
 });
 
 
-// Get license plate logs
+// Getting license plate logs
 app.get('/api/plate-logs', authenticateJWT, async (req, res) => {
   try {
-    // Forward to Python service or get from your database
     const connection = await pool.getConnection();
     const [logs] = await connection.query(
       'SELECT * FROM entry_logs ORDER BY entry_time DESC LIMIT 50'
@@ -874,8 +871,6 @@ app.post('/api/manual-plate', authenticateJWT, async (req, res) => {
     return res.json({ plate_number, status });
   }
 }
-
-
 
     connection.release();
     return res.json({ plate_number, status });

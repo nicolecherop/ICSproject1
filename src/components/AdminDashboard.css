@@ -1,4 +1,4 @@
-/* Main Structure */
+
 .admin-dashboard {
   display: flex;
   min-height: 100vh;
@@ -64,7 +64,7 @@ nav li .icon {
   align-items: center;
   width: 100%;
   padding: 10px 15px;
-  background: #e74c3c; /* Red color */
+  background: #e74c3c; 
   color: white;
   border: none;
   border-radius: 4px;
@@ -74,7 +74,7 @@ nav li .icon {
 }
 
 .logout-btn:hover {
-  background: #c0392b; /* Darker red on hover */
+  background: #c0392b; 
 }
 
 .logout-btn .icon {
@@ -83,8 +83,7 @@ nav li .icon {
 
 /* Main Content Area */
 .main-content {
-  margin-left: 250px; /* Same as sidebar width */
-  flex-grow: 1;
+  margin-left: 250px; 
   background: #f5f5f5;
 }
 
@@ -247,7 +246,7 @@ table th {
     margin-left: 10px;
   }
 }
-/* Loading Spinner */
+
 .loading-spinner {
   border: 3px solid rgba(0, 0, 0, 0.1);
   border-radius: 50%;
@@ -263,7 +262,7 @@ table th {
   100% { transform: rotate(360deg); }
 }
 
-/* Refresh Button */
+
 .refresh-btn {
   background: #3498db;
   color: white;
@@ -288,7 +287,6 @@ table th {
   margin-bottom: 20px;
 }
 
-/* Stat Cards */
 .stat-card {
   background: white;
   padding: 20px;
@@ -416,7 +414,7 @@ table th {
   border-radius: 4px;
   margin: 20px 0;
 }
-/* Confirmation Card Styles */
+
 .confirmation-card {
   position: fixed;
   top: 0;
@@ -472,7 +470,7 @@ table th {
   background-color: #bdbdbd;
 }
 
-/* Table Styles */
+
 .users-content table {
   width: 100%;
   border-collapse: collapse;
@@ -595,7 +593,7 @@ table th {
 .entry-logs-table tr:hover {
   background-color: #f9f9f9;
 }
-/* Main Container */
+
 .analytics-content {
   padding: 20px;
   max-width: 1200px;
@@ -603,7 +601,7 @@ table th {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Camera Section */
+
 .camera-section {
   margin: 20px 0;
   text-align: center;
@@ -614,14 +612,17 @@ table th {
 }
 
 .camera-feed {
-  max-width: 100%;
-  max-height: 400px;
-  border: 2px solid #dee2e6;
-  border-radius: 6px;
-  background: #000;
   display: block;
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  border-radius: 8px;
+  background: #000;
+  object-fit: cover;
   margin: 0 auto 15px;
+  
 }
+
 
 .camera-placeholder {
   padding: 40px;
@@ -635,7 +636,7 @@ table th {
   margin-top: 10px;
 }
 
-/* Error Handling */
+
 .error-message {
   color: #dc3545;
   background: #f8d7da;
@@ -645,7 +646,7 @@ table th {
   border-left: 4px solid #dc3545;
 }
 
-/* Buttons */
+
 .btn {
   padding: 10px 20px;
   border: none;
@@ -725,7 +726,7 @@ table th {
   transform: translateY(-2px);
 }
 
-/* Action Buttons Container */
+
 .action-buttons {
   display: flex;
   justify-content: center;
@@ -733,7 +734,6 @@ table th {
   margin: 25px 0;
 }
 
-/* Status Section */
 .status-section {
   margin: 25px 0;
 }
@@ -802,7 +802,6 @@ table th {
   color: #721c24;
 }
 
-/* Logs Section */
 .logs-section {
   margin-top: 30px;
   background: #f8f9fa;
@@ -941,7 +940,7 @@ table th {
 .print-button:hover {
   background-color: #0056b3;
 }
-/* Manual Entry Override Button */
+
 .manual-override .manual-btn {
   background-color: #f59e0b; 
   width: 845px;
@@ -970,7 +969,6 @@ table th {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-/* Manual Form Heading */
 .manual-form h4 {
   font-size: 18px;
   font-weight: 700;

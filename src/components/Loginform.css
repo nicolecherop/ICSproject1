@@ -36,7 +36,7 @@
   background-color: #1f2029;
   border-radius: 4px;
   padding: 0.5em 1em;
-   appearance: none; /* removes default browser styling */
+   appearance: none; 
 }
 .field2 {
   margin: 1.3rem 0rem;
@@ -47,7 +47,7 @@
   background-color: #1f2029;
   border-radius: 4px;
   padding: 0.5em 0.5em;
-   appearance: none; /* removes default browser styling */
+   appearance: none; 
 }
 .input-icon {
   height: 1em;
@@ -88,7 +88,6 @@
   color: #f5f5f5;
 }
 
-/*Buttons*/
 .btn {
   margin: 1rem;
   width: 90%;
@@ -163,7 +162,6 @@
   opacity: 0.7;
   cursor: not-allowed;
 }
-/* Add these styles to your existing CSS */
 
 .select-wrapper {
   position: relative;

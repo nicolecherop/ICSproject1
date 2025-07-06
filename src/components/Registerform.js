@@ -27,7 +27,7 @@ const Registerform = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Trim all inputs
+    
     const trimmedData = {
       firstname: formData.firstname.trim(),
       lastname: formData.lastname.trim(),
@@ -36,11 +36,11 @@ const Registerform = () => {
       confirmPassword: formData.confirmPassword.trim()
     };
 
-    // Clear previous messages
+    
     setError('');
     setSuccess('');
 
-    // Validate form
+    
     if (!trimmedData.firstname || !trimmedData.lastname || 
         !trimmedData.email || !trimmedData.password || 
         !trimmedData.confirmPassword) {

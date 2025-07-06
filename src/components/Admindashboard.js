@@ -284,7 +284,7 @@ const UsersContent = () => {
       if (!response.ok) throw new Error('Failed to fetch users');
       
       let data = await response.json();
-      // Filter out admin users
+      // Filter out admin 
       data = data.filter(user => user.role !== 'admin');
       setUsers(data);
     } catch (err) {
@@ -313,7 +313,7 @@ const UsersContent = () => {
       
       if (!response.ok) throw new Error('Failed to delete user');
       
-      // Refresh the user list
+      // Refresh 
       fetchUsers();
     } catch (err) {
       setError(err.message);
@@ -486,7 +486,7 @@ const VisitorsContent = () => {
         />
       </div>
 
-      {/* 🔴 Delete confirmation modal */}
+      {/* Delete confirmation modal */}
       {showDeleteConfirm && (
         <div className="confirmation-card">
           <div className="confirmation-content">
@@ -778,9 +778,6 @@ const VehiclesContent = () => {
   );
 };
 
-
-
-
 const GateAccessContent = () => {
   const [processing, setProcessing] = useState(false);
   const [lastResult, setLastResult] = useState(null);
@@ -793,7 +790,7 @@ const GateAccessContent = () => {
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
-  const retryTimeoutRef = useRef(null); // ✅ Now defined!
+  const retryTimeoutRef = useRef(null); 
 
   const startCamera = useCallback(async () => {
     try {
@@ -1100,7 +1097,8 @@ const GateAccessContent = () => {
       )}
     </div>
   );
-};
+}; 
+
 const EntrylogsContent = () => {
   const [entryLogs, setEntryLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
